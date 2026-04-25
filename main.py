@@ -32,13 +32,16 @@ class NumberModel(QObject):
 
     MIN_VALUE = 0
     MAX_VALUE = 100
+    DEFAULT_FILE = "model_data.json"
 
-    def __init__(self) -> None:
+    def __init__(self, file_path: Optional[str] = None) -> None:
         super().__init__()
+        self.__file_path = file_path or self.DEFAULT_FILE
         self.__a = self.MIN_VALUE
         self.__b = self.MIN_VALUE
         self.__c = self.MAX_VALUE
         self.__update_count = 0
+        self.__load_silent()
         self.__notify()
 
     def get_min(self) -> int:
@@ -89,6 +92,14 @@ class NumberModel(QObject):
         new_b = self.__clamp(value, self.__a, self.__c)
         self.__commit(self.__a, new_b, self.__c)
 
+    def set_all(self, a: int, b: int, c: int) -> None:
+        a = self.__clamp(a, self.MIN_VALUE, self.MAX_VALUE)
+        c = self.__clamp(c, self.MIN_VALUE, self.MAX_VALUE)
+        if a > c:
+            a, c = c, a
+        b = self.__clamp(b, a, c)
+        self.__commit(a, b, c)
+
     def __commit(self, a: int, b: int, c: int) -> None:
         if (a, b, c) == (self.__a, self.__b, self.__c):
             return
@@ -96,3 +107,30 @@ class NumberModel(QObject):
         self.__b = b
         self.__c = c
         self.__notify()
+
+    def save(self) -> None:
+        try:
+            data = {"a": self.__a, "c": self.__c}
+            with open(self.__file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            print(f"NumberModel: ошибка сохранения: {exc}")
+
+    def __load_silent(self) -> None:
+        if not os.path.exists(self.__file_path):
+            return
+        try:
+            with open(self.__file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"NumberModel: ошибка загрузки: {exc}")
+            return
+
+        a = self.__clamp(data.get("a", self.MIN_VALUE),
+                         self.MIN_VALUE, self.MAX_VALUE)
+        c = self.__clamp(data.get("c", self.MAX_VALUE),
+                         self.MIN_VALUE, self.MAX_VALUE)
+        if a > c:
+            a, c = c, a
+        b = a
+        self.__a, self.__b, self.__c = a, b, c
