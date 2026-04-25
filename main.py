@@ -134,3 +134,91 @@ class NumberModel(QObject):
             a, c = c, a
         b = a
         self.__a, self.__b, self.__c = a, b, c
+
+
+class NumberWidget(QWidget):
+    """Три синхронизированных контрола для одного числа."""
+
+    request_value = pyqtSignal(int)
+
+    def __init__(self, title: str, min_val: int, max_val: int,
+                 initial: int, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.__min = min_val
+        self.__max = max_val
+        self.__current = initial
+        self.__updating = False
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(6)
+
+        title_label = QLabel(title, self)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        f = title_label.font()
+        f.setBold(True)
+        title_label.setFont(f)
+        layout.addWidget(title_label)
+
+        self.__edit = QLineEdit(str(initial), self)
+        self.__edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.__edit.setValidator(QIntValidator(min_val, max_val, self))
+        self.__edit.editingFinished.connect(self.__on_edit_finished)
+        layout.addWidget(self.__edit)
+
+        self.__spin = QSpinBox(self)
+        self.__spin.setRange(min_val, max_val)
+        self.__spin.setValue(initial)
+        self.__spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.__spin.valueChanged.connect(self.__on_spin_changed)
+        layout.addWidget(self.__spin)
+
+        self.__slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.__slider.setRange(min_val, max_val)
+        self.__slider.setValue(initial)
+        self.__slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.__slider.setTickInterval(10)
+        self.__slider.valueChanged.connect(self.__on_slider_changed)
+        layout.addWidget(self.__slider)
+
+    def set_display_value(self, value: int) -> None:
+        self.__current = value
+        self.__updating = True
+        try:
+            if self.__edit.text() != str(value):
+                self.__edit.setText(str(value))
+            if self.__spin.value() != value:
+                self.__spin.setValue(value)
+            if self.__slider.value() != value:
+                self.__slider.setValue(value)
+        finally:
+            self.__updating = False
+
+    def __on_edit_finished(self) -> None:
+        if self.__updating:
+            return
+        text = self.__edit.text().strip()
+        if not text or text in ("-", "+"):
+            self.set_display_value(self.__current)
+            return
+        try:
+            value = int(text)
+        except ValueError:
+            self.set_display_value(self.__current)
+            return
+        value = max(self.__min, min(self.__max, value))
+        self.request_value.emit(value)
+
+    def __on_spin_changed(self, value: int) -> None:
+        if self.__updating:
+            return
+        self.request_value.emit(int(value))
+
+    def __on_slider_changed(self, value: int) -> None:
+        if self.__updating:
+            return
+        self.request_value.emit(int(value))
+
+    def focusOutEvent(self, event) -> None:
+        super().focusOutEvent(event)
+        if self.__edit.text().strip() in ("", "-", "+"):
+            self.set_display_value(self.__current)
