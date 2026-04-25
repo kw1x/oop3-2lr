@@ -222,3 +222,69 @@ class NumberWidget(QWidget):
         super().focusOutEvent(event)
         if self.__edit.text().strip() in ("", "-", "+"):
             self.set_display_value(self.__current)
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, model: NumberModel) -> None:
+        super().__init__()
+        self.setWindowTitle("ЛР №3.2 — MVC, числа A ≤ B ≤ C")
+        self.resize(820, 360)
+
+        self.__model = model
+
+        central = QWidget(self)
+        self.setCentralWidget(central)
+        root = QVBoxLayout(central)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.setSpacing(14)
+
+        row = QHBoxLayout()
+        row.setSpacing(12)
+        lo, hi = model.get_min(), model.get_max()
+        self.__widget_a = NumberWidget("Число A", lo, hi, model.get_a(), self)
+        self.__widget_b = NumberWidget("Число B", lo, hi, model.get_b(), self)
+        self.__widget_c = NumberWidget("Число C", lo, hi, model.get_c(), self)
+        row.addWidget(self.__widget_a)
+        row.addWidget(self.__widget_b)
+        row.addWidget(self.__widget_c)
+        root.addLayout(row)
+
+        self.__status = QLabel(self)
+        self.__status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.__status.setStyleSheet("color: #555; padding: 4px;")
+        root.addWidget(self.__status)
+
+        self.__widget_a.request_value.connect(self.__model.set_a)
+        self.__widget_b.request_value.connect(self.__model.set_b)
+        self.__widget_c.request_value.connect(self.__model.set_c)
+
+        self.__model.changed.connect(self.__refresh_from_model)
+        self.__refresh_from_model()
+
+    def __refresh_from_model(self) -> None:
+        a = self.__model.get_a()
+        b = self.__model.get_b()
+        c = self.__model.get_c()
+        self.__widget_a.set_display_value(a)
+        self.__widget_b.set_display_value(b)
+        self.__widget_c.set_display_value(c)
+        self.__status.setText(
+            f"Обновлений модели: {self.__model.get_update_count()}"
+        )
+
+    def closeEvent(self, event) -> None:
+        self.__model.save()
+        event.accept()
+
+
+def main() -> None:
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    model = NumberModel()
+    window = MainWindow(model)
+    window.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()
